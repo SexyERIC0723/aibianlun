@@ -5,8 +5,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 import { DebateCoordinator } from './ai/DebateCoordinator';
 import { AIConfig } from './types';
+import { APIHealthCheck, HealthCheckResult } from './utils/apiHealthCheck';
 
 dotenv.config();
+
+// 存储健康检查结果
+let healthCheckResults: HealthCheckResult[] = [];
 
 const app = express();
 const server = createServer(app);
@@ -20,17 +24,48 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'AI辩论服务器运行中' });
 });
 
-// 获取AI配置
+// 获取AI配置和健康状态
 app.get('/api/ai-configs', (req, res) => {
   const configs = getAIConfigs();
   res.json({
-    configs: configs.map(c => ({
-      name: c.name,
-      provider: c.provider,
-      model: c.model,
-      available: !!c.apiKey,
-    })),
+    configs: configs.map(c => {
+      const healthResult = healthCheckResults.find(h => h.name === c.name);
+      return {
+        name: c.name,
+        provider: c.provider,
+        model: c.model,
+        available: !!c.apiKey,
+        status: healthResult?.status || 'unknown',
+        message: healthResult?.message || '',
+      };
+    }),
+    healthCheckResults,
   });
+});
+
+// API健康检查端点
+app.post('/api/health-check', async (req, res) => {
+  try {
+    const configs = getAIConfigs();
+    const results = await APIHealthCheck.testAllConfigs(configs);
+    healthCheckResults = results;
+
+    res.json({
+      success: true,
+      results,
+      summary: {
+        total: results.length,
+        success: results.filter(r => r.status === 'success').length,
+        error: results.filter(r => r.status === 'error').length,
+        skipped: results.filter(r => r.status === 'skipped').length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : '健康检查失败',
+    });
+  }
 });
 
 // WebSocket连接处理
@@ -52,19 +87,23 @@ wss.on('connection', (ws: WebSocket) => {
           return;
         }
 
-        // 获取AI配置
-        const configs = getAIConfigs();
+        // 获取健康的AI配置（只使用通过健康检查的AI）
+        const allConfigs = getAIConfigs();
+        const healthyConfigs = allConfigs.filter(config => {
+          const healthResult = healthCheckResults.find(h => h.name === config.name);
+          return healthResult?.status === 'success';
+        });
 
-        if (configs.length === 0) {
+        if (healthyConfigs.length === 0) {
           ws.send(JSON.stringify({
             type: 'error',
-            message: '没有可用的AI配置，请检查环境变量',
+            message: '没有可用的AI服务。请配置有效的API密钥后重启服务器。',
           }));
           return;
         }
 
-        // 创建辩论协调器
-        const coordinator = new DebateCoordinator(configs, 3, 75);
+        // 创建辩论协调器（只使用健康的AI）
+        const coordinator = new DebateCoordinator(healthyConfigs, 3, 75);
 
         // 开始辩论，并通过WebSocket实时发送更新
         const result = await coordinator.startDebate(question, (update) => {
@@ -179,14 +218,27 @@ function getAIConfigs(): AIConfig[] {
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 AI辩论服务器运行在端口 ${PORT}`);
   console.log(`HTTP: http://localhost:${PORT}`);
   console.log(`WebSocket: ws://localhost:${PORT}`);
 
+  // 获取AI配置
   const configs = getAIConfigs();
   console.log(`\n已配置的AI数量: ${configs.length}`);
   configs.forEach(config => {
     console.log(`  - ${config.name} (${config.provider}/${config.model})`);
   });
+
+  // 执行启动时健康检查
+  console.log('\n🔍 开始API健康检查...\n');
+  healthCheckResults = await APIHealthCheck.testAllConfigs(configs);
+  APIHealthCheck.printHealthReport(healthCheckResults);
+
+  // 提示用户如何配置
+  const successCount = healthCheckResults.filter(r => r.status === 'success').length;
+  if (successCount === 0) {
+    console.log('💡 提示: 编辑 backend/.env 文件来配置你的API密钥');
+    console.log('   示例: OPENAI_API_KEY=sk-your-actual-key-here\n');
+  }
 });

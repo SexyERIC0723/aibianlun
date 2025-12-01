@@ -22,17 +22,28 @@ interface Message {
   timestamp: number;
 }
 
+interface AIStatus {
+  name: string;
+  provider: string;
+  model: string;
+  status: 'success' | 'error' | 'skipped' | 'unknown';
+  message: string;
+}
+
 function App() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isDebating, setIsDebating] = useState(false);
   const [currentRound, setCurrentRound] = useState(0);
+  const [aiStatuses, setAiStatuses] = useState<AIStatus[]>([]);
+  const [showStatusPanel, setShowStatusPanel] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     connectWebSocket();
+    fetchAIStatus();
 
     return () => {
       if (wsRef.current) {
@@ -40,6 +51,18 @@ function App() {
       }
     };
   }, []);
+
+  const fetchAIStatus = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/ai-configs');
+      const data = await response.json();
+      if (data.configs) {
+        setAiStatuses(data.configs);
+      }
+    } catch (error) {
+      console.error('获取AI状态失败:', error);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -226,11 +249,22 @@ function App() {
     );
   };
 
+  const getAvailableAICount = () => {
+    return aiStatuses.filter(s => s.status === 'success').length;
+  };
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>🤖 AI辩论聊天系统</h1>
         <div className="connection-status">
+          <button
+            className="status-button"
+            onClick={() => setShowStatusPanel(!showStatusPanel)}
+            title="查看AI状态"
+          >
+            🔍 AI状态 ({getAvailableAICount()}/{aiStatuses.length})
+          </button>
           <span className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
             {isConnected ? '● 已连接' : '○ 未连接'}
           </span>
@@ -239,6 +273,40 @@ function App() {
           )}
         </div>
       </header>
+
+      {showStatusPanel && (
+        <div className="status-panel">
+          <div className="status-panel-header">
+            <h3>🏥 AI服务状态</h3>
+            <button onClick={() => setShowStatusPanel(false)}>✕</button>
+          </div>
+          <div className="status-list">
+            {aiStatuses.map((ai, index) => (
+              <div key={index} className={`status-item status-${ai.status}`}>
+                <div className="status-item-header">
+                  <span className="status-icon">
+                    {ai.status === 'success' && '✅'}
+                    {ai.status === 'error' && '❌'}
+                    {ai.status === 'skipped' && '⏭️'}
+                    {ai.status === 'unknown' && '❓'}
+                  </span>
+                  <strong>{ai.name}</strong>
+                  <span className="status-badge">{ai.provider}</span>
+                </div>
+                <div className="status-item-details">
+                  <div>模型: {ai.model}</div>
+                  <div className="status-message">{ai.message || '等待检查...'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="status-panel-footer">
+            <button onClick={fetchAIStatus} className="refresh-button">
+              🔄 刷新状态
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="chat-container">
         <div className="messages-area">
