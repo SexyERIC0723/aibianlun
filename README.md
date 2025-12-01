@@ -4,7 +4,7 @@
 
 ## ✨ 核心特性
 
-- 🧠 **多AI并发思考**：同时调用多个AI（GPT-4、Claude、Gemini等）对同一问题进行思考
+- 🧠 **多AI并发思考**：同时调用多个AI（GPT-4、Claude、Gemini、DeepSeek等）对同一问题进行思考
 - 💭 **透明的思考过程**：实时展示每个AI的思考过程和推理逻辑
 - 🗣️ **AI间辩论**：AI们会参考彼此的观点，进行多轮讨论和优化
 - 🔄 **智能迭代**：如果AI们认为可以有更好的答案，会自动进行新一轮思考
@@ -80,6 +80,11 @@ ANTHROPIC_MODEL=claude-3-opus-20240229
 # Google配置（Gemini）
 GOOGLE_API_KEY=your-google-api-key-here
 GOOGLE_MODEL=gemini-pro
+
+# DeepSeek配置
+DEEPSEEK_API_KEY=your-deepseek-api-key-here
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
 **注意**：至少需要配置一个AI服务的API密钥。如果不配置任何密钥，系统将使用模拟AI（仅用于测试）。
@@ -145,6 +150,7 @@ npm run dev:frontend  # 启动前端（端口3000）
   - OpenAI SDK（GPT-4）
   - Anthropic SDK（Claude）
   - Google Generative AI SDK（Gemini）
+  - DeepSeek API（DeepSeek）
 
 ### 前端
 - **React 18** + **TypeScript**：现代化的UI框架
@@ -277,6 +283,7 @@ MIT License
 - OpenAI（GPT-4）
 - Anthropic（Claude）
 - Google（Gemini）
+- DeepSeek（DeepSeek）
 
 ---
 

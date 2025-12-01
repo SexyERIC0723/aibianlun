@@ -21,9 +21,10 @@ export interface DebateResult {
 
 export interface AIConfig {
   name: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'custom';
+  provider: 'openai' | 'anthropic' | 'google' | 'deepseek' | 'custom';
   model: string;
   apiKey?: string;
+  baseURL?: string;
 }
 
 export interface ChatMessage {

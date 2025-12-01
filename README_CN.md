@@ -45,12 +45,15 @@ npm run dev
 ### Google (Gemini)
 访问：https://makersuite.google.com/app/apikey
 
+### DeepSeek
+访问：https://platform.deepseek.com/
+
 ## 常见问题
 
 **Q: 我没有任何API密钥，可以使用吗？**
 A: 可以！不配置API密钥时，系统会使用模拟AI进行演示，但回答质量会受限。
 
-**Q: 需要配置所有三个AI吗？**
+**Q: 需要配置所有AI吗？**
 A: 不需要，至少配置一个即可。配置越多，辩论效果越好。
 
 **Q: 如何停止服务？**

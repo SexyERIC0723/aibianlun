@@ -141,6 +141,17 @@ function getAIConfigs(): AIConfig[] {
     });
   }
 
+  // DeepSeek
+  if (process.env.DEEPSEEK_API_KEY) {
+    configs.push({
+      name: 'DeepSeek',
+      provider: 'deepseek',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+    });
+  }
+
   // 如果没有配置任何API密钥，使用模拟AI（仅用于开发测试）
   if (configs.length === 0) {
     console.warn('警告：没有配置任何AI API密钥，将使用模拟AI');

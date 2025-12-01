@@ -6,6 +6,7 @@ import { AIConfig, AIResponse } from '../types';
 export class AIClient {
   private config: AIConfig;
   private openai?: OpenAI;
+  private deepseek?: OpenAI;
   private anthropic?: Anthropic;
   private google?: GoogleGenerativeAI;
 
@@ -19,6 +20,14 @@ export class AIClient {
       case 'openai':
         if (this.config.apiKey) {
           this.openai = new OpenAI({ apiKey: this.config.apiKey });
+        }
+        break;
+      case 'deepseek':
+        if (this.config.apiKey) {
+          this.deepseek = new OpenAI({
+            apiKey: this.config.apiKey,
+            baseURL: this.config.baseURL || 'https://api.deepseek.com',
+          });
         }
         break;
       case 'anthropic':
@@ -47,6 +56,12 @@ export class AIClient {
           thinking = result.thinking;
           answer = result.answer;
           confidence = result.confidence;
+          break;
+        case 'deepseek':
+          const deepseekResult = await this.callDeepSeek(fullPrompt);
+          thinking = deepseekResult.thinking;
+          answer = deepseekResult.answer;
+          confidence = deepseekResult.confidence;
           break;
         case 'anthropic':
           const anthropicResult = await this.callAnthropic(fullPrompt);
@@ -112,6 +127,22 @@ export class AIClient {
     }
 
     const completion = await this.openai.chat.completions.create({
+      model: this.config.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const content = completion.choices[0]?.message?.content || '';
+    return this.parseResponse(content);
+  }
+
+  private async callDeepSeek(prompt: string): Promise<{ thinking: string; answer: string; confidence: number }> {
+    if (!this.deepseek) {
+      throw new Error('DeepSeek客户端未初始化');
+    }
+
+    const completion = await this.deepseek.chat.completions.create({
       model: this.config.model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
