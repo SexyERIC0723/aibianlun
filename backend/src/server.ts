@@ -6,11 +6,18 @@ import dotenv from 'dotenv';
 import { DebateCoordinator } from './ai/DebateCoordinator';
 import { AIConfig } from './types';
 import { APIHealthCheck, HealthCheckResult } from './utils/apiHealthCheck';
+import { sessionManager } from './services/SessionManager';
+import { createLogger } from './utils/logger';
 
 dotenv.config();
 
+const logger = createLogger('Server');
+
 // 存储健康检查结果
 let healthCheckResults: HealthCheckResult[] = [];
+
+// WebSocket连接映射
+const wsConnections = new Map<string, WebSocket>();
 
 const app = express();
 const server = createServer(app);
@@ -46,9 +53,15 @@ app.get('/api/ai-configs', (req, res) => {
 // API健康检查端点
 app.post('/api/health-check', async (req, res) => {
   try {
+    logger.info('Health check requested');
     const configs = getAIConfigs();
     const results = await APIHealthCheck.testAllConfigs(configs);
     healthCheckResults = results;
+
+    logger.info('Health check completed', {
+      total: results.length,
+      success: results.filter(r => r.status === 'success').length,
+    });
 
     res.json({
       success: true,
@@ -61,10 +74,95 @@ app.post('/api/health-check', async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error('Health check failed', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : '健康检查失败',
     });
+  }
+});
+
+// ========== 会话管理API ==========
+
+// 获取所有会话列表
+app.get('/api/sessions', (req, res) => {
+  try {
+    const sessions = sessionManager.getAllSessions();
+    logger.debug('Sessions list requested', { count: sessions.length });
+    res.json({ success: true, sessions });
+  } catch (error) {
+    logger.error('Failed to get sessions', error);
+    res.status(500).json({ success: false, error: 'Failed to get sessions' });
+  }
+});
+
+// 创建新会话
+app.post('/api/sessions', (req, res) => {
+  try {
+    const { title, enabledAIs } = req.body;
+    const session = sessionManager.createSession(title, enabledAIs);
+    logger.info('Session created', { id: session.id, title: session.title });
+    res.json({ success: true, session });
+  } catch (error) {
+    logger.error('Failed to create session', error);
+    res.status(500).json({ success: false, error: 'Failed to create session' });
+  }
+});
+
+// 获取单个会话详情
+app.get('/api/sessions/:id', (req, res) => {
+  try {
+    const session = sessionManager.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    logger.debug('Session retrieved', { id: session.id });
+    res.json({ success: true, session });
+  } catch (error) {
+    logger.error('Failed to get session', error);
+    res.status(500).json({ success: false, error: 'Failed to get session' });
+  }
+});
+
+// 更新会话
+app.patch('/api/sessions/:id', (req, res) => {
+  try {
+    const { title, enabledAIs } = req.body;
+    const session = sessionManager.updateSession(req.params.id, { title, enabledAIs });
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    logger.info('Session updated', { id: session.id });
+    res.json({ success: true, session });
+  } catch (error) {
+    logger.error('Failed to update session', error);
+    res.status(500).json({ success: false, error: 'Failed to update session' });
+  }
+});
+
+// 删除会话
+app.delete('/api/sessions/:id', (req, res) => {
+  try {
+    const deleted = sessionManager.deleteSession(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+    logger.info('Session deleted', { id: req.params.id });
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to delete session', error);
+    res.status(500).json({ success: false, error: 'Failed to delete session' });
+  }
+});
+
+// 获取会话统计信息
+app.get('/api/sessions-stats', (req, res) => {
+  try {
+    const stats = sessionManager.getStats();
+    res.json({ success: true, stats });
+  } catch (error) {
+    logger.error('Failed to get session stats', error);
+    res.status(500).json({ success: false, error: 'Failed to get stats' });
   }
 });
 
